@@ -6,6 +6,7 @@ import imageio
 import torch
 import random
 import cv2
+import os
 from functools import partial
 from abc import abstractmethod, ABCMeta
 
@@ -180,9 +181,9 @@ class Sintel(BaseDataset):
         p = Path(self.dataset_dir)
         p_img = p / 'training' / self.mode
         p_flow = p / 'training/flow'
-    
+        
         collections_of_scenes = sorted(map(str, p_img.glob('**/*.png')))
-        collections = [list(g) for k, g in groupby(collections_of_scenes, lambda x: x.split('/')[-2])]
+        collections = [list(g) for k, g in groupby(collections_of_scenes, lambda x: os.path.split(x)[0][1])]
         samples = [(*i, i[0].replace(self.mode, 'flow').replace('.png', '.flo'))\
                    for collection in collections for i in utils.window(collection, 2)]
         self.split(samples)
