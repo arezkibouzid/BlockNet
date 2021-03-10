@@ -26,7 +26,7 @@ def load_flow(uri):
             data = np.fromfile(f, np.float32, count = h*w*2)
             data.resize((h, w, 2))
             return data
-        return None
+    return None
 
 def resize_flow(flow, resize_shape):
     if flow.ndim != 3:
@@ -183,7 +183,7 @@ class Sintel(BaseDataset):
         p_flow = p / 'training/flow'
         
         collections_of_scenes = sorted(map(str, p_img.glob('**/*.png')))
-        collections = [list(g) for k, g in groupby(collections_of_scenes, lambda x: os.path.split(x)[0][1])]
+        collections = [list(g) for k, g in groupby(collections_of_scenes, lambda x: os.path.split(os.path.split(x)[0])[1])]
         samples = [(*i, i[0].replace(self.mode, 'flow').replace('.png', '.flo'))\
                    for collection in collections for i in utils.window(collection, 2)]
         self.split(samples)

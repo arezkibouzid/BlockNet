@@ -1,9 +1,9 @@
 {
     "dataset": "Sintel",
-    "dataset_dir": "C:/Users/zigbo/OneDrive/Bureau/DataSet/",
-    "num_epochs": 5,
-    "batch_size": 128,
-    "num_workers": 4,
+    "dataset_dir": "C:\\Users\\AREZKI\\Desktop\\DataSet\\MPI-Sintel-complete",
+    "num_epochs": 100,
+    "batch_size": 4,
+    "num_workers": 2,
     "crop_type": "random",
     "crop_shape": [
         384,
