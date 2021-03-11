@@ -56,15 +56,18 @@ class FeaturePyramidExtractor_custom(object):
         - features_pyramid (batch, h_l, w_l, nch_l) for each scale levels:
           extracted feature pyramid (deep -> shallow order)
         """
-        with tf.variable_scope(self.name, reuse = reuse) as vs:
+        with tf.compat.v1.variable_scope(self.name, reuse = reuse) as vs:
             features_pyramid = []
             x = images
             for l in range(self.num_levels):
-                x = tf.layers.Conv2D(self.filters[l], (3, 3), (2, 2), 'same')(x)
-                x = tf.nn.leaky_relu(x, 0.1)
-                x = tf.layers.Conv2D(self.filters[l], (3, 3),dilation_rate=(2, 2))
- 
-                x = tf.nn.leaky_relu(x, 0.1)
+                x = tf.keras.layers.Conv2D(self.filters[l], (3, 3), (2, 2), 'same')(x)
+                x = tf.compat.v1.nn.leaky_relu(x, 0.1)
+                print("*********************")
+                print(x.shape)
+                x = tf.keras.layers.Conv2D(self.filters[l], (3, 3),dilation_rate=(2, 2),padding='same')(x)
+                print(x.shape)
+                print("*********************")
+                x = tf.compat.v1.nn.leaky_relu(x, 0.1)
                
                 features_pyramid.append(x)
                 
@@ -185,7 +188,7 @@ class CostVolumeLayer(object):
     """ Cost volume module """
     def __init__(self, search_range = 4,block_size = 1, name = 'cost_volume'):
         self.s_range = search_range
-      self.block_size = block_size 
+        self.block_size = block_size 
         self.name = name
  
     def __call__(self, features_0, features_0from1):

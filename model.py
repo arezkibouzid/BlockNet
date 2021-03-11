@@ -1,6 +1,6 @@
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-from modules import *
+from modulesBlockNet import *
 
 
 class PWCNet(object):
@@ -93,7 +93,7 @@ class PWCDCNet(object):
         self.scales = [None, 0.625, 1.25, 2.5, 5.0, 10., 20.]
 
     def __call__(self, images_0, images_1, with_features = False, reuse = False):
-        with tf.variable_scope(self.name, reuse = reuse) as vs:
+        with tf.compat.v1.variable_scope(self.name, reuse = reuse) as vs:
             pyramid_0 = self.fp_extractor(images_0, reuse = reuse)
             pyramid_1 = self.fp_extractor(images_1)
 
