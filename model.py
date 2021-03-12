@@ -1,5 +1,4 @@
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
 from modulesBlockNet import *
 
 
@@ -13,22 +12,21 @@ class PWCNet(object):
         self.output_level = output_level
         self.name = name
 
-        self.fp_extractor = FeaturePyramidExtractor(self.num_levels)
+        self.fp_extractor = FeaturePyramidExtractor_custom(self.num_levels)
         self.warp_layer = WarpingLayer(self.warp_type)
         self.cv_layer = CostVolumeLayer(self.s_range)
-        self.of_estimators = [OpticalFlowEstimator(self.batch_norm,
-                                                   name = f'optflow_{l}')\
+        self.of_estimators = [OpticalFlowEstimator(name = f'optflow_{l}')\
                               for l in range(self.num_levels)]
         # self.contexts = ContextNetwork()
-        assert self.context in ['all', 'final'], 'context argument should be all/final'
-        if self.context is 'all':
-            self.context_nets = [ContextNetwork(name = f'context_{l}')\
-                                 for l in range(self.num_levels)]
-        else:
-            self.context_net = ContextNetwork(name = 'context')
+        #assert self.context in ['all', 'final'], 'context argument should be all/final'
+        #if self.context is 'all':
+        #    self.context_nets = [ContextNetwork(name = f'context_{l}')\
+        #                         for l in range(self.num_levels)]
+        #else:
+        #    self.context_net = ContextNetwork(name = 'context')
 
     def __call__(self, images_0, images_1):
-        with tf.variable_scope(self.name) as vs:
+        with tf.compat.v1.variable_scope(self.name) as vs:
 
             pyramid_0 = self.fp_extractor(images_0, reuse = False)
             pyramid_1 = self.fp_extractor(images_1)
@@ -42,7 +40,7 @@ class PWCNet(object):
                 if l == 0:
                     flow = tf.zeros((b, h, w, 2), dtype = tf.float32)
                 else:
-                    flow = tf.image.resize_bilinear(flow, (h, w))*2
+                    flow = tf.compat.v1.image.resize_bilinear(flow, (h, w))*2
 
                 # warping -> costvolume -> optical flow estimation
                 feature_1_warped = self.warp_layer(feature_1, flow)
@@ -50,10 +48,10 @@ class PWCNet(object):
                 feature, flow = self.of_estimators[l](feature_0, cost, flow)
 
                 # context considering process all/final
-                if self.context is 'all':
-                    flow = self.context_nets[l](feature, flow)
-                elif l == self.output_level: 
-                    flow = self.context_net(feature, flow)
+                #if self.context is 'all':
+                #    flow = self.context_nets[l](feature, flow)
+                #elif l == self.output_level: 
+                #    flow = self.context_net(feature, flow)
 
                 flows.append(flow)
                 
@@ -61,14 +59,14 @@ class PWCNet(object):
                 if l == self.output_level:
                     upscale = 2**(self.num_levels - self.output_level)
                     print(f'Finally upscale flow by {upscale}.')
-                    finalflow = tf.image.resize_bilinear(flow, (h*upscale, w*upscale))*upscale
+                    finalflow = tf.compat.v1.image.resize_bilinear(flow, (h*upscale, w*upscale))*upscale
                     break
-
+                
             return finalflow, flows, pyramid_0
 
     @property
     def vars(self):
-        return [var for var in tf.global_variables() if self.name in var.name]
+        return [var for var in tf.compat.v1.global_variables() if self.name in var.name]
 
 
 class PWCDCNet(object):

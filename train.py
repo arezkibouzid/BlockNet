@@ -1,8 +1,8 @@
 import os
 import argparse
 import time
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+
 import numpy as np
 from datetime import datetime
 from torch.utils import data
@@ -10,7 +10,7 @@ from functools import partial
 from tqdm import tqdm
 
 from datahandler.flow import get_dataset
-from model import PWCDCNet
+from model import PWCNet
 from losses import L1loss, L2loss, EPE, multiscale_loss, multirobust_loss
 from utils import save_config, ExperimentSaver
 from flow_utils import vis_flow, vis_flow_pyramid
@@ -19,9 +19,9 @@ from flow_utils import vis_flow, vis_flow_pyramid
 class Trainer(object):
     def __init__(self, args):
         self.args = args
-        config = tf.ConfigProto()
+        config = tf.compat.v1.ConfigProto()
         config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config = config)
+        self.sess = tf.compat.v1.Session(config = config)
         self._build_dataloader()
         self._build_graph()
 
@@ -44,24 +44,23 @@ class Trainer(object):
     def _build_graph(self):
         # Input images and ground truth optical flow definition
         with tf.name_scope('Data'):
-            self.images = tf.placeholder(tf.float32, shape = (self.args.batch_size, 2, *self.image_size, 3),
+            self.images = tf.compat.v1.placeholder(tf.float32, shape = (self.args.batch_size, 2, *self.image_size, 3),
                                          name = 'images')
             images_0, images_1 = tf.unstack(self.images, axis = 1)
-            self.flows_gt = tf.placeholder(tf.float32, shape = (self.args.batch_size, *self.image_size, 2),
+            self.flows_gt = tf.compat.v1.placeholder(tf.float32, shape = (self.args.batch_size, *self.image_size, 2),
                                            name = 'flows')
 
         # Model inference via PWCNet
-        model = PWCDCNet(num_levels = self.args.num_levels,
+        model = PWCNet(num_levels = self.args.num_levels,
                          search_range = self.args.search_range,
                          warp_type = self.args.warp_type,
-                         use_dc = self.args.use_dc,
                          output_level = self.args.output_level,
-                         name = 'pwcdcnet')
-        flows_final, self.flows = model(images_0, images_1)
-        target_weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
-                                           scope = 'pwcdcnet/fp_extractor')[::6]
-        target_weights += tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
-                                            scope = 'pwcdcnet/optflow')[::12]
+                         name = 'pwcnet')
+        flows_final, self.flows,_ = model(images_0, images_1)
+        target_weights = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+                                           scope = 'pwcnet/fp_extractor')[::6]
+        target_weights += tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+                                            scope = 'pwcnet/optflow')[::12]
 
         # Loss calculation
         with tf.name_scope('Loss'):
@@ -79,37 +78,37 @@ class Trainer(object):
 
         # Gradient descent optimization
         with tf.name_scope('Optimize'):
-            self.global_step = tf.train.get_or_create_global_step()
+            self.global_step = tf.compat.v1.train.get_or_create_global_step()
             if self.args.lr_scheduling:
                 boundaries = [200000, 250000, 300000, 350000, 4000000]
                 values = [self.args.lr/(2**i) for i in range(len(boundaries)+1)]
-                lr = tf.train.piecewise_constant(self.global_step, boundaries, values)
+                lr = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
             else:
                 lr = self.args.lr
 
-            self.optimizer = tf.train.AdamOptimizer(learning_rate = lr)\
+            self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = lr)\
                              .minimize(loss, var_list = model.vars)
             with tf.control_dependencies([self.optimizer]):
-                self.optimizer = tf.assign_add(self.global_step, 1)
+                self.optimizer = tf.compat.v1.assign_add(self.global_step, 1)
 
         # Initialization
-        self.saver = tf.train.Saver(model.vars)
-        self.sess.run(tf.global_variables_initializer())
+        self.saver = tf.compat.v1.train.Saver(model.vars)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         if self.args.resume is not None:
             print(f'Loading learned model from checkpoint {self.args.resume}')
             self.saver.restore(self.sess, self.args.resume)
 
         # Summarize
         # Original PWCNet loss
-        sum_loss = tf.summary.scalar('loss/pwc', loss)
+        sum_loss = tf.compat.v1.summary.scalar('loss/pwc', loss)
         # EPE for both domains
-        sum_epe = tf.summary.scalar('EPE/source', epe)
+        sum_epe = tf.compat.v1.summary.scalar('EPE/source', epe)
         # Merge summaries
-        self.merged = tf.summary.merge([sum_loss, sum_epe])
+        self.merged = tf.compat.v1.summary.merge([sum_loss, sum_epe])
 
         logdir = 'logs/history_' + datetime.now().strftime('%Y-%m-%d-%H-%M')
-        self.twriter = tf.summary.FileWriter(logdir+'/train', graph = self.sess.graph)
-        self.vwriter = tf.summary.FileWriter(logdir+'/val', graph = self.sess.graph)
+        self.twriter = tf.compat.v1.summary.FileWriter(logdir+'/train', graph = self.sess.graph)
+        self.vwriter = tf.compat.v1.summary.FileWriter(logdir+'/val', graph = self.sess.graph)
 
         self.exp_saver = ExperimentSaver(logdir = logdir, parse_args = self.args)
 

@@ -6,10 +6,10 @@ from functools import partial
 
 def _conv_block(filters, kernel_size = (3, 3), strides = (1, 1), batch_norm = False):
     def f(x):
-        x = tf.layers.Conv2D(filters, kernel_size,
+        x = tf.keras.layers.Conv2D(filters, kernel_size,
                              strides, 'same')(x)
         if batch_norm:
-            x = tf.layers.BatchNormalization()(x)
+            x = tf.keras.layers.BatchNormalization()(x)
         x = tf.nn.leaky_relu(x, 0.2)
         return x
     return f
@@ -23,7 +23,7 @@ class FeaturePyramidExtractor(object):
         self.name = name
 
     def __call__(self, x, reuse = True):
-        with tf.variable_scope(self.name) as vs:
+        with tf.compat.v1.variable_scope(self.name) as vs:
             if reuse:
                 vs.reuse_variables()
                 
@@ -42,7 +42,7 @@ class FeaturePyramidExtractor(object):
 # FeaturePyramidExtractor_custom -------------------------------------
 class FeaturePyramidExtractor_custom(object):
     """ Feature pyramid extractor module"""
-    def __init__(self, num_levels = 6, name = 'fp_extractor'):
+    def __init__(self, num_levels = 3, name = 'fp_extractor'):
         self.num_levels = num_levels
         self.filters = [16, 32, 64, 96, 128, 192]
         self.name = name
@@ -62,11 +62,7 @@ class FeaturePyramidExtractor_custom(object):
             for l in range(self.num_levels):
                 x = tf.keras.layers.Conv2D(self.filters[l], (3, 3), (2, 2), 'same')(x)
                 x = tf.compat.v1.nn.leaky_relu(x, 0.1)
-                print("*********************")
-                print(x.shape)
                 x = tf.keras.layers.Conv2D(self.filters[l], (3, 3),dilation_rate=(2, 2),padding='same')(x)
-                print(x.shape)
-                print("*********************")
                 x = tf.compat.v1.nn.leaky_relu(x, 0.1)
                
                 features_pyramid.append(x)
@@ -194,8 +190,8 @@ class CostVolumeLayer(object):
     def __call__(self, features_0, features_0from1):
         with tf.name_scope(self.name) as ns:
             b, h, w, f = tf.unstack(tf.shape(features_0))
-            cost_length = (w-block_size)*(block_size**2)
- 
+            cost_length = (2*self.s_range+1)**2
+
             get_c = partial(get_cost, features_0, features_0from1)
             cv = [0]*cost_length
             depth = 0
@@ -203,7 +199,7 @@ class CostVolumeLayer(object):
                 for h in range(-self.s_range, self.s_range+1):
                     cv[depth] = get_c(shift = [v, h])
                     depth += 1
- 
+
             cv = tf.stack(cv, axis = 3)
             cv = tf.nn.leaky_relu(cv, 0.1)
             return cv
@@ -217,7 +213,7 @@ class OpticalFlowEstimator(object):
         self.name = name
 
     def __call__(self, cost, x, flow):
-        with tf.variable_scope(self.name) as vs:
+        with tf.compat.v1.variable_scope(self.name) as vs:
             flow = tf.cast(flow, dtype = tf.float32)
             x = tf.concat([cost, x, flow], axis = 3)
             x = _conv_block(128, (3, 3), (1, 1), self.batch_norm)(x)
@@ -225,7 +221,7 @@ class OpticalFlowEstimator(object):
             x = _conv_block(96, (3, 3), (1, 1), self.batch_norm)(x)
             x = _conv_block(64, (3, 3), (1, 1), self.batch_norm)(x)
             feature = _conv_block(32, (3, 3), (1, 1), self.batch_norm)(x)
-            flow = tf.layers.Conv2D(2, (3, 3), (1, 1), padding = 'same')(feature)
+            flow = tf.keras.layers.Conv2D(2, (3, 3), (1, 1), padding = 'same')(feature)
 
             return feature, flow # x:processed feature, w:processed flow
 
