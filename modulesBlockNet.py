@@ -4,8 +4,6 @@ from functools import partial
 
 
 
-
-
 # Feature pyramid extractor module simple/original -----------------------
 
         
@@ -164,11 +162,17 @@ class CostVolumeLayer(object):
         with tf.name_scope(self.name) as ns:
             f_c=features_0
             f_r=features_0from1
-            f_c=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(self.block_size,self.block_size))(f_c)
+
+            f_c=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(self.block_size,self.block_size))(f_c)            
             f_r=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(1,1))(f_r)
-            #f_c_r=repeat(fc,self.s_range)
-            p_c=tf.image.extract_patches(images=f_c_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.s_range, self.s_range, 1],rates=,padding='VALID')
-            p_r=tf.image.extract_patches(images=f_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.block_size, self.block_size, 1],rates=,padding='VALID')
+            print(f_c.shape)
+            f_c_r=tf.repeat(tf.repeat(f_c, self.s_range, axis=1), self.s_range, axis=2)
+            print(f_c_r.shape)
+            p_c=tf.image.extract_patches(images=f_c_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.s_range, self.s_range, 1],rates=[1, 0, 0, 1],padding='VALID')
+            p_c=tf.reshape(p_c,[p_c.shape[0],self.s_range,self.s_range,])
+            print(p_c.shape)
+            p_r=tf.image.extract_patches(images=f_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.block_size, self.block_size, 1],rates=[1, 1, 1, 1],padding='VALID')
+            print(p_r)
 
         '''with tf.name_scope(self.name) as ns:
             b, h, w, f = tf.unstack(tf.shape(features_0))
@@ -184,8 +188,8 @@ class CostVolumeLayer(object):
 
             cv = tf.stack(cv, axis = 3)
             cv = tf.nn.leaky_relu(cv, 0.1)'''
-            cv=p_c*p_r
-            return cv
+            ##cv=p_c*p_r
+        return 0
 
             
 
@@ -243,7 +247,7 @@ class OpticalFlowEstimator_custom(object):
         is_output: True
         - features (batch, h, w, nch_f): convolved feature map
         """
-        with tf.variable_scope(self.name) as vs:
+        with tf.compat.v1.variable_scope(self.name) as vs:
             features = cv
             for f in [features_0, flows_up_prev, features_up_prev]:
                 if f is not None:

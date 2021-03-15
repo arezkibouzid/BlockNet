@@ -15,7 +15,7 @@ class PWCNet(object):
         self.fp_extractor = FeaturePyramidExtractor_custom(self.num_levels)
         self.warp_layer = WarpingLayer(self.warp_type)
         self.cv_layer = CostVolumeLayer(self.s_range)
-        self.of_estimators = [OpticalFlowEstimator(name = f'optflow_{l}')\
+        self.of_estimators = [OpticalFlowEstimator_custom(name = f'optflow_{l}')\
                               for l in range(self.num_levels)]
         # self.contexts = ContextNetwork()
         #assert self.context in ['all', 'final'], 'context argument should be all/final'
