@@ -46,7 +46,7 @@ class PWCNet(object):
                 # warping -> costvolume -> optical flow estimation
                 feature_1_warped = self.warp_layer(feature_1, flow)
                 cost = self.cv_layer(feature_0, feature_1_warped)
-                feature, flow = self.of_estimators[l](feature_0, cost, flow)
+                feature, flow = self.of_estimators[l](features_0=feature_0, cv=cost)#, flow)
 
                 # context considering process all/final
                 #if self.context is 'all':

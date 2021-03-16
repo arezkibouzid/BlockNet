@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from functools import partial
+import sys
 
 
 
@@ -148,6 +149,29 @@ def get_cost(features_0, features_0from1, shift):
     f_0from1_pad = pad2d(features_0from1, [vb, vt], [hr, hl])
     cost_pad = f_0_pad*f_0from1_pad
     return tf.reduce_mean(crop2d(cost_pad, [vt, vb], [hl, hr]), axis = 3)
+
+def extract_patch(f_c_r,s_range,block_size=-1):
+    if(block_size==-1):
+        block_size=s_range
+    liste_images = tf.unstack(f_c_r,axis=0)
+    blist =[]
+    for image in liste_images:
+        blist.append(tf.unstack(image,axis=2))
+    result =[]
+    image_block =[]
+    for image in blist:
+        for fetMap in image:
+            fetMap= tf.reshape(fetMap,[1,fetMap.shape[0],fetMap.shape[1],1])
+            pp=tf.image.extract_patches(images=fetMap,sizes=[1, s_range, s_range, 1],strides=[1, block_size, block_size, 1],rates=[1, 1, 1, 1],padding='SAME')
+            pp = tf.squeeze(pp)
+            image_block.append(pp)
+        tensor_image = tf.convert_to_tensor(image_block, dtype=tf.float32)
+        tensor_image =tf.stack(tf.unstack(tensor_image,axis=0),axis=2)
+        image_block.clear()
+        result.append(tensor_image)
+    result = tf.convert_to_tensor(result, dtype=tf.float32)
+    return result
+
    
 
 
@@ -162,22 +186,24 @@ class CostVolumeLayer(object):
         with tf.name_scope(self.name) as ns:
             f_c=features_0
             f_r=features_0from1
+            print("basic f_c",f_c.shape)
+            print("basic f_r",f_r.shape)
 
             f_c=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(self.block_size,self.block_size))(f_c)            
             f_r=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(1,1))(f_r)
-            print(f_c.shape)
             f_c_r=tf.repeat(tf.repeat(f_c, self.s_range, axis=1), self.s_range, axis=2)
-            print(f_c_r.shape)
-            p_c=tf.image.extract_patches(images=f_c_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.s_range, self.s_range, 1],rates=[1, 0, 0, 1],padding='VALID')
-            p_c=tf.reshape(p_c,[p_c.shape[0],self.s_range,self.s_range,])
-            print(p_c.shape)
-            p_r=tf.image.extract_patches(images=f_r,sizes=[1, self.s_range, self.s_range, 1],strides=[1, self.block_size, self.block_size, 1],rates=[1, 1, 1, 1],padding='VALID')
-            print(p_r)
+
+            
+            p_c = extract_patch(f_c_r,self.s_range)
+            p_r = extract_patch(f_r,self.s_range,self.block_size)
+            cv = p_c*p_r
+            cv =tf.reduce_mean(cv, axis = 4)
+
+            print(cv.shape)
 
         '''with tf.name_scope(self.name) as ns:
             b, h, w, f = tf.unstack(tf.shape(features_0))
             cost_length = (2*self.s_range+1)**2
-
             get_c = partial(get_cost, features_0, features_0from1)
             cv = [0]*cost_length
             depth = 0
@@ -187,12 +213,23 @@ class CostVolumeLayer(object):
                     depth += 1
 
             cv = tf.stack(cv, axis = 3)
+            print(cv.shape)
+
             cv = tf.nn.leaky_relu(cv, 0.1)'''
             ##cv=p_c*p_r
-        return 0
+        return cv
 
             
-
+def _conv_block(filters, kernel_size = (3, 3), strides = (1, 1), batch_norm = False):
+    def f(x):
+        x = tf.layers.Conv2D(filters, kernel_size,
+                             strides, 'same')(x)
+        if batch_norm:
+            x = tf.layers.BatchNormalization()(x)
+        x = tf.nn.leaky_relu(x, 0.2)
+        return x
+    return f
+    
 # Optical flow estimator module simple/original -----------------------------------------
 class OpticalFlowEstimator(object):
     def __init__(self, name = 'of_estimator'):
@@ -247,6 +284,8 @@ class OpticalFlowEstimator_custom(object):
         is_output: True
         - features (batch, h, w, nch_f): convolved feature map
         """
+        print("++++++++",features_0.shape)
+        print("++++++++",cv.shape)
         with tf.compat.v1.variable_scope(self.name) as vs:
             features = cv
             for f in [features_0, flows_up_prev, features_up_prev]:
