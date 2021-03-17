@@ -1,9 +1,10 @@
 {
     "dataset": "Sintel",
     "dataset_dir": "C:\\Users\\AREZKI\\Desktop\\dataSet\\MPI-Sintel-complete",
-    "num_epochs": 100,
+    "num_epochs": 600,
     "batch_size": 4,
-    "num_workers": 2,
+    "block_size": 4,
+    "num_workers": 8,
     "crop_type": "random",
     "crop_shape": [
         384,
@@ -12,7 +13,7 @@
     "resize_shape": null,
     "resize_scale": null,
     "num_levels": 3,
-    "search_range": 4,
+    "search_range": 32,
     "warp_type": "bilinear",
     "use_dc": false,
     "output_level": 2,
@@ -22,9 +23,7 @@
     "weights": [
         0.32,
         0.08,
-        0.02,
-        0.01,
-        0.005
+        0.02
     ],
     "gamma": 0.0004,
     "epsilon": 0.02,

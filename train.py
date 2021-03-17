@@ -10,7 +10,7 @@ from functools import partial
 from tqdm import tqdm
 
 from datahandler.flow import get_dataset
-from model import PWCNet
+from model import BLOCKNet
 from losses import L1loss, L2loss, EPE, multiscale_loss, multirobust_loss
 from utils import save_config, ExperimentSaver
 from flow_utils import vis_flow, vis_flow_pyramid
@@ -50,17 +50,17 @@ class Trainer(object):
             self.flows_gt = tf.compat.v1.placeholder(tf.float32, shape = (self.args.batch_size, *self.image_size, 2),
                                            name = 'flows')
 
-        # Model inference via PWCNet
-        model = PWCNet(num_levels = self.args.num_levels,
+        # Model inference via BlockNet
+        model = BLOCKNet(num_levels = self.args.num_levels,
                          search_range = self.args.search_range,
                          warp_type = self.args.warp_type,
                          output_level = self.args.output_level,
-                         name = 'pwcnet')
+                         name = 'BlockNet')
         flows_final, self.flows,_ = model(images_0, images_1)
         target_weights = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
-                                           scope = 'pwcnet/fp_extractor')[::6]
+                                           scope = 'BlockNet/fp_extractor')[::6]
         target_weights += tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
-                                            scope = 'pwcnet/optflow')[::12]
+                                            scope = 'BlockNet/optflow')[::12]
 
         # Loss calculation
         with tf.name_scope('Loss'):
@@ -99,8 +99,8 @@ class Trainer(object):
             self.saver.restore(self.sess, self.args.resume)
 
         # Summarize
-        # Original PWCNet loss
-        sum_loss = tf.compat.v1.summary.scalar('loss/pwc', loss)
+        # Original BlockNet loss
+        sum_loss = tf.compat.v1.summary.scalar('loss/BlockNet', loss)
         # EPE for both domains
         sum_epe = tf.compat.v1.summary.scalar('EPE/source', epe)
         # Merge summaries
@@ -178,11 +178,13 @@ if __name__ == '__main__':
                         help = 'Target dataset, [SintelClean]')
     parser.add_argument('-dd', '--dataset_dir', type = str, required = True,
                         help = 'Directory containing target dataset')
-    parser.add_argument('-e', '--num_epochs', type = int, default = 100,
+    parser.add_argument('-e', '--num_epochs', type = int, default = 600,
                         help = '# of epochs [100]')
     parser.add_argument('-b', '--batch_size', type = int, default = 4,
                         help = 'Batch size [4]')
-    parser.add_argument('-nw', '--num_workers', type = int, default = 2,
+    parser.add_argument('-bl', '--block_size', type = int, default = 4,
+                        help = 'Block size [4]')
+    parser.add_argument('-nw', '--num_workers', type = int, default = 8,
                         help = '# of workers for data loading [2]')
 
     parser.add_argument('--crop_type', type = str, default = 'random',
@@ -194,9 +196,9 @@ if __name__ == '__main__':
     parser.add_argument('--resize_scale', type = float, default = None,
                         help = 'Resize scale for raw data [None]')
 
-    parser.add_argument('--num_levels', type = int, default = 6,
+    parser.add_argument('--num_levels', type = int, default = 3,
                         help = '# of levels for feature extraction [6]')
-    parser.add_argument('--search_range', type = int, default = 4,
+    parser.add_argument('--search_range', type = int, default = 32,
                         help = 'Search range for cost-volume calculation [4]')
     parser.add_argument('--warp_type', default = 'bilinear', choices = ['bilinear', 'nearest'],
                         help = 'Warping protocol, [bilinear] or nearest')
@@ -205,7 +207,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-dc', dest = 'use_dc', action = 'store_false',
                         help = 'Disable dense connection in optical flow estimator, [disabled] as default')
     parser.set_defaults(use_dc = False)
-    parser.add_argument('--output_level', type = int, default = 4,
+    parser.add_argument('--output_level', type = int, default = 2,
                         help = 'Final output level for estimated flow [4]')
 
     parser.add_argument('--loss', default = 'multiscale', choices = ['multiscale', 'robust'],
@@ -218,7 +220,7 @@ if __name__ == '__main__':
                         help = 'Disable learning rate scheduling, [enabled] as default')
     parser.set_defaults(lr_scheduling = True)
     parser.add_argument('--weights', nargs = '+', type = float,
-                        default = [0.32, 0.08, 0.02, 0.01, 0.005],
+                        default = [0.32, 0.08, 0.02],
                         help = 'Weights for each pyramid loss')
     parser.add_argument('--gamma', type = float, default = 0.0004,
                         help = 'Coefficient for weight decay [4e-4]')

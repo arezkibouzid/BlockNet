@@ -2,9 +2,9 @@ import tensorflow as tf
 from modulesBlockNet import *
 
 
-class PWCNet(object):
-    def __init__(self, num_levels = 6, search_range = 4, warp_type = 'bilinear',
-                 output_level = 4, name = 'pwcnet'):
+class BLOCKNet(object):
+    def __init__(self, num_levels = 3, search_range = 32, warp_type = 'bilinear',
+                 output_level = 2, name = 'BlockNet'):
         self.num_levels = num_levels
         self.s_range = search_range
         self.warp_type = warp_type
@@ -43,10 +43,12 @@ class PWCNet(object):
                 else:
                     flow = tf.compat.v1.image.resize_bilinear(flow, (h, w))*2
 
+
                 # warping -> costvolume -> optical flow estimation
                 feature_1_warped = self.warp_layer(feature_1, flow)
                 cost = self.cv_layer(feature_0, feature_1_warped)
-                feature, flow = self.of_estimators[l](features_0=feature_0, cv=cost)#, flow)
+                flow = self.of_estimators[l](cv=cost,features_0=feature_0)
+                #, flow)
 
                 # context considering process all/final
                 #if self.context is 'all':

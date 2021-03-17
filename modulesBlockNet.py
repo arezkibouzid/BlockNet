@@ -4,9 +4,6 @@ from functools import partial
 import sys
 
 
-
-# Feature pyramid extractor module simple/original -----------------------
-
         
 # FeaturePyramidExtractor_custom -------------------------------------
 class FeaturePyramidExtractor_custom(object):
@@ -125,7 +122,7 @@ class WarpingLayer(object):
 
 
 # Cost volume layer -------------------------------------
-def pad2d(x, vpad, hpad):
+'''def pad2d(x, vpad, hpad):
     return tf.pad(x, [[0, 0], vpad, hpad, [0, 0]])
  
 def crop2d(x, vcrop, hcrop):
@@ -149,7 +146,7 @@ def get_cost(features_0, features_0from1, shift):
     f_0from1_pad = pad2d(features_0from1, [vb, vt], [hr, hl])
     cost_pad = f_0_pad*f_0from1_pad
     return tf.reduce_mean(crop2d(cost_pad, [vt, vb], [hl, hr]), axis = 3)
-
+'''
 def extract_patch(f_c_r,s_range,block_size=-1):
     if(block_size==-1):
         block_size=s_range
@@ -177,7 +174,7 @@ def extract_patch(f_c_r,s_range,block_size=-1):
 
 class CostVolumeLayer(object):
     """ Cost volume module """
-    def __init__(self, search_range = 4,block_size = 2, name = 'cost_volume'):
+    def __init__(self, search_range = 15,block_size = 4, name = 'cost_volume'):
         self.s_range = search_range
         self.block_size = block_size 
         self.name = name
@@ -198,8 +195,10 @@ class CostVolumeLayer(object):
             p_r = extract_patch(f_r,self.s_range,self.block_size)
             cv = p_c*p_r
             cv =tf.reduce_mean(cv, axis = 4)
+            cv = tf.keras.layers.UpSampling2D(size=(self.block_size, self.block_size))(cv)
 
-            print(cv.shape)
+
+            print("shape CV : ",cv.shape)
 
         '''with tf.name_scope(self.name) as ns:
             b, h, w, f = tf.unstack(tf.shape(features_0))
@@ -220,40 +219,13 @@ class CostVolumeLayer(object):
         return cv
 
             
-def _conv_block(filters, kernel_size = (3, 3), strides = (1, 1), batch_norm = False):
-    def f(x):
-        x = tf.layers.Conv2D(filters, kernel_size,
-                             strides, 'same')(x)
-        if batch_norm:
-            x = tf.layers.BatchNormalization()(x)
-        x = tf.nn.leaky_relu(x, 0.2)
-        return x
-    return f
-    
+
 # Optical flow estimator module simple/original -----------------------------------------
-class OpticalFlowEstimator(object):
-    def __init__(self, name = 'of_estimator'):
-        self.batch_norm = False
-        self.name = name
-
-    def __call__(self, cost, x, flow):
-        with tf.compat.v1.variable_scope(self.name) as vs:
-            flow = tf.cast(flow, dtype = tf.float32)
-            x = tf.concat([cost, x, flow], axis = 3)
-            x = _conv_block(128, (3, 3), (1, 1), self.batch_norm)(x)
-            x = _conv_block(128, (3, 3), (1, 1), self.batch_norm)(x)
-            x = _conv_block(96, (3, 3), (1, 1), self.batch_norm)(x)
-            x = _conv_block(64, (3, 3), (1, 1), self.batch_norm)(x)
-            feature = _conv_block(32, (3, 3), (1, 1), self.batch_norm)(x)
-            flow = tf.keras.layers.Conv2D(2, (3, 3), (1, 1), padding = 'same')(feature)
-
-            return feature, flow # x:processed feature, w:processed flow
-
 
 # OpticalDlowEstimator_custom -------------------------------------
 class OpticalFlowEstimator_custom(object):
     """ Optical flow estimator module """
-    def __init__(self, use_dc = True, name = 'of_estimator'):
+    def __init__(self, use_dc = False, name = 'of_estimator'):
         """
         Args:
         - use_dc (bool): optional bool to use dense-connection, False as default
@@ -263,7 +235,7 @@ class OpticalFlowEstimator_custom(object):
         self.use_dc = use_dc
         self.name = name
  
-    def __call__(self, cv, features_0 = None, flows_up_prev = False, features_up_prev = False,
+    def __call__(self, cv, features_0 , flows_up_prev = None, features_up_prev = None,
                  is_output = False):
         """
         Args:
@@ -284,8 +256,6 @@ class OpticalFlowEstimator_custom(object):
         is_output: True
         - features (batch, h, w, nch_f): convolved feature map
         """
-        print("++++++++",features_0.shape)
-        print("++++++++",cv.shape)
         with tf.compat.v1.variable_scope(self.name) as vs:
             features = cv
             for f in [features_0, flows_up_prev, features_up_prev]:
@@ -293,14 +263,14 @@ class OpticalFlowEstimator_custom(object):
                     features = tf.concat([features, f], axis = 3)
  
             for f in self.filters:
-                conv = tf.layers.Conv2D(f, (3, 3), (2, 2), 'same')(features)
+                conv = tf.keras.layers.Conv2D(f, (3, 3), (2, 2), 'same')(features)
                 conv = tf.nn.leaky_relu(conv, 0.1)
                 if self.use_dc:
                     features = tf.concat([conv, features], axis = 3)
                 else:
                     features = conv
  
-            flows = tf.layers.Conv2D(2, (3, 3), (1, 1), 'same')(features)
+            flows = tf.keras.layers.Conv2D(2, (3, 3), (1, 1), 'same')(features)
             if flows_up_prev is not None:
                 # Residual connection
                 flows += flows_up_prev
@@ -309,8 +279,9 @@ class OpticalFlowEstimator_custom(object):
                 return flows, features
             else:
                 _, h, w, _ = tf.unstack(tf.shape(flows))
-                flows_up = tf.image.resize_bilinear(flows, (2*h, 2*w))
-                features_up = tf.image.resize_bilinear(features, (2*h, 2*w))
-                return flows, flows_up, features_up
+                flows_up = tf.compat.v1.image.resize_bilinear(flows, (2*h, 2*w))
+                #features_up = tf.compat.v1.image.resize_bilinear(features, (2*h, 2*w))
+                #flows
+                return flows_up
 
             
