@@ -8,7 +8,7 @@ import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import imageio
 
-from model import PWCDCNet
+from model import BLOCKNet
 from flow_utils import vis_flow_pyramid
 
 def factor_crop(image, factor = 64):
@@ -33,8 +33,8 @@ class Tester(object):
         self.images_tf = tf.expand_dims(tf.convert_to_tensor(self.images, dtype = tf.float32),
                                         axis = 0) # shape(1, 2, h, w, 3)
 
-        self.model = PWCDCNet()
-        self.flow_final, self.flows \
+        self.model = BLOCKNet()
+        self.flow_final, self.flows,_ \
           = self.model(self.images_tf[:,0], self.images_tf[:,1])
 
         self.saver = tf.train.Saver()
