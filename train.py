@@ -179,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('-dd', '--dataset_dir', type = str, required = True,
                         help = 'Directory containing target dataset')
     parser.add_argument('-e', '--num_epochs', type = int, default = 600,
-                        help = '# of epochs [100]')
+                        help = '# of epochs [600]')
     parser.add_argument('-b', '--batch_size', type = int, default = 4,
                         help = 'Batch size [4]')
     parser.add_argument('-bl', '--block_size', type = int, default = 4,
@@ -198,7 +198,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--num_levels', type = int, default = 3,
                         help = '# of levels for feature extraction [6]')
-    parser.add_argument('--search_range', type = int, default = 32,
+    parser.add_argument('--search_range', type = int, default = 15,
                         help = 'Search range for cost-volume calculation [4]')
     parser.add_argument('--warp_type', default = 'bilinear', choices = ['bilinear', 'nearest'],
                         help = 'Warping protocol, [bilinear] or nearest')

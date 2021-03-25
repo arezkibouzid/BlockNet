@@ -13,7 +13,7 @@
     "resize_shape": null,
     "resize_scale": null,
     "num_levels": 3,
-    "search_range": 32,
+    "search_range": 15,
     "warp_type": "bilinear",
     "use_dc": false,
     "output_level": 2,

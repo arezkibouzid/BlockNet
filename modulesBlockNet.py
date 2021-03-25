@@ -161,11 +161,14 @@ def extract_patch(f_c_r,s_range,block_size=-1):
             fetMap= tf.reshape(fetMap,[1,fetMap.shape[0],fetMap.shape[1],1])
             pp=tf.image.extract_patches(images=fetMap,sizes=[1, s_range, s_range, 1],strides=[1, block_size, block_size, 1],rates=[1, 1, 1, 1],padding='SAME')
             pp = tf.squeeze(pp)
-            image_block.append(pp)
+            pp = tf.reshape(pp,shape=(pp.shape[0],pp.shape[1],s_range,s_range))
+            pp= tf.reshape(pp,(pp.shape[2],pp.shape[3],pp.shape[1]*pp.shape[0]))
+            image_block.append(pp)#stack 
         tensor_image = tf.convert_to_tensor(image_block, dtype=tf.float32)
-        tensor_image =tf.stack(tf.unstack(tensor_image,axis=0),axis=2)
-        image_block.clear()
+        shape= tensor_image.shape
+        tensor_image = tf.reshape(tensor_image,shape=(s_range,s_range,shape[0]*shape[3]))
         result.append(tensor_image)
+        image_block.clear()
     result = tf.convert_to_tensor(result, dtype=tf.float32)
     return result
 
@@ -182,22 +185,26 @@ class CostVolumeLayer(object):
     def __call__(self, features_0, features_0from1):
         with tf.name_scope(self.name) as ns:
             f_c=features_0
+            shape = f_c.shape
             f_r=features_0from1
             print("basic f_c",f_c.shape)
             print("basic f_r",f_r.shape)
 
             f_c=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(self.block_size,self.block_size))(f_c)            
             f_r=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(1,1))(f_r)
+            print(" f_c after pooling",f_c.shape)
+            print(" f_r after pooling",f_r.shape)
             f_c_r=tf.repeat(tf.repeat(f_c, self.s_range, axis=1), self.s_range, axis=2)
-
+            print(" f_c_r  repeat",f_c_r.shape)
             
             p_c = extract_patch(f_c_r,self.s_range)
             p_r = extract_patch(f_r,self.s_range,self.block_size)
             cv = p_c*p_r
-            cv =tf.reduce_mean(cv, axis = 4)
-            cv = tf.keras.layers.UpSampling2D(size=(self.block_size, self.block_size))(cv)
-
-
+            
+            cv= tf.reshape(cv,(shape[0],shape[1],shape[2],-1))
+            print("shape pc : ",p_c.shape)
+            print("shape pr : ",p_r.shape)
+            #cv = tf.keras.layers.UpSampling2D(size=(self.block_size, self.block_size))(cv)
             print("shape CV : ",cv.shape)
 
         '''with tf.name_scope(self.name) as ns:
@@ -216,6 +223,7 @@ class CostVolumeLayer(object):
 
             cv = tf.nn.leaky_relu(cv, 0.1)'''
             ##cv=p_c*p_r
+        cv = tf.nn.leaky_relu(cv, 0.1)
         return cv
 
             
