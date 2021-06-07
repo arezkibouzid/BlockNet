@@ -32,22 +32,34 @@ class BLOCKNet(object):
             pyramid_1 = self.fp_extractor(images_1)
     
 
-            flows = []
+            flows_up = []
+            flows_base =[]
+            flows_forW = []
+            flows_final = []
             # coarse to fine processing
             for l, (feature_0, feature_1) in enumerate(zip(pyramid_0, pyramid_1)):
                 print(f'Level {l}')
                 b, h, w, _ = tf.unstack(tf.shape(feature_0))
                 
                 if l == 0:
-                    flow = tf.zeros((b, h, w, 2), dtype = tf.float32)
+                    flow_up = tf.zeros((b, h, w, 2), dtype = tf.float32)
+                    #flows.append(flow)
+                    flows_forW.append(flow_up)
                 else:
-                    flow = tf.compat.v1.image.resize_bilinear(flow, (h, w))*2
+                    #_,h_flow,w_flow,_=tf.unstack(tf.shape(flow))
+                    #depth = tf.Variable([h/h_flow,w/w_flow], dtype=tf.float32)
+                    flow_up = tf.compat.v1.image.resize_bilinear(flow_base, (h, w))*(1/2**(3-l))
+                    flows_forW.append(flow_up)
 
+                #flows_forW.append(flow)
 
                 # warping -> costvolume -> optical flow estimation
-                feature_1_warped = self.warp_layer(feature_1, flow)
-                cost = self.cv_layer(feature_0, feature_1_warped)
-                flow = self.of_estimators[l](cv=cost,features_0=feature_0)
+                feature_1_warped = self.warp_layer(feature_1, flow_up)
+
+                cost = self.cv_layer(l,feature_0, feature_1_warped)
+                flow_base,flow_up = self.of_estimators[l](cost,feature_0)
+                flows_base.append(flow_base)
+
                 #, flow)
 
                 # context considering process all/final
@@ -56,16 +68,21 @@ class BLOCKNet(object):
                 #elif l == self.output_level: 
                 #    flow = self.context_net(feature, flow)
 
-                flows.append(flow)
-                
+                flows_up.append(flow_up)
+                #flows_base.append(flow_1)
+
+                upscale = 2**(self.num_levels-l)
+                finalflow_acc = tf.compat.v1.image.resize_bilinear(flow_base, (h*upscale, w*upscale))*upscale
+                flows_final.append(finalflow_acc)
                 # stop processing at the defined level
                 if l == self.output_level:
                     upscale = 2**(self.num_levels - self.output_level)
                     print(f'Finally upscale flow by {upscale}.')
-                    finalflow = tf.compat.v1.image.resize_bilinear(flow, (h*upscale, w*upscale))*upscale
+                    finalflow = tf.compat.v1.image.resize_bilinear(flow_base, (h*upscale, w*upscale))*upscale
+                    flows_base.append(finalflow)
                     break
                 
-            return finalflow, flows, pyramid_0
+            return finalflow, flows_final, flows_up, pyramid_0, flows_base, flows_forW
 
     @property
     def vars(self):

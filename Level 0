@@ -1,0 +1,79 @@
+Level 0
+basic f_c (4, 48, 56, 64)
+basic f_r (4, 48, 56, 64)
+ f_c after pooling (4, 12, 14, 64)
+ f_r after pooling (4, 45, 53, 64)
+ f_c_r  repeat (4, 180, 210, 64)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+result function Tensor("BlockNet/cost_volume/packed_4:0", shape=(4, 64, 15, 15, 168), dtype=float32)
+p_c extract patch  (4, 64, 15, 15, 168)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+image  (64, 15, 15, 168)
+result function Tensor("BlockNet/cost_volume/packed_9:0", shape=(4, 64, 15, 15, 168), dtype=float32)
+p_c extract patch  (4, 64, 15, 15, 168)
+cv = pc*pr Tensor("BlockNet/cost_volume/Mean:0", shape=(4, 15, 15, 168), dtype=float32)
+shaped  (1, Dimension(12), Dimension(14), 1)
+cv_fffff (4, 225, 48, 56)
+cv_f (4, 48, 56, 225)
+shape pc :  (4, 64, 15, 15, 168)
+shape pr :  (4, 64, 15, 15, 168)
+shape CV :  (4, 48, 56, 225)
+Size flow (4, 3, 4, 2)
+Size flow after resize (4, 6, 8, 2)
+Level 1
+basic f_c (4, 96, 112, 32)
+basic f_r (4, 96, 112, 32)
+ f_c after pooling (4, 24, 28, 32)
+ f_r after pooling (4, 93, 109, 32)
+ f_c_r  repeat (4, 360, 420, 32)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+result function Tensor("BlockNet/cost_volume_1/packed_4:0", shape=(4, 32, 15, 15, 672), dtype=float32)
+p_c extract patch  (4, 32, 15, 15, 672)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+image  (32, 15, 15, 672)
+result function Tensor("BlockNet/cost_volume_1/packed_9:0", shape=(4, 32, 15, 15, 672), dtype=float32)
+p_c extract patch  (4, 32, 15, 15, 672)
+cv = pc*pr Tensor("BlockNet/cost_volume_1/Mean:0", shape=(4, 15, 15, 672), dtype=float32)
+shaped  (1, Dimension(24), Dimension(28), 1)
+cv_fffff (4, 225, 96, 112)
+cv_f (4, 96, 112, 225)
+shape pc :  (4, 32, 15, 15, 672)
+shape pr :  (4, 32, 15, 15, 672)
+shape CV :  (4, 96, 112, 225)
+Size flow (4, 6, 7, 2)
+Size flow after resize (4, 12, 14, 2)
+Finally upscale flow by 4.
+
+
+[384, 448]
+
+
+
+
+
+h,w of flow_base
+flows_up = tf.compat.v1.image.resize_bilinear(flows, (2*h, 2*w))
+
+flow = tf.compat.v1.image.resize_bilinear(flow_up, (h, w))*2
+
+
+
+
+finalflow = tf.compat.v1.image.resize_bilinear(flow, (h*upscale, w*upscale))*upscale
+                    break
+
+
+
+epe final flow 
+
+loss after resize 

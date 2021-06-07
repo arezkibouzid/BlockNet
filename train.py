@@ -31,11 +31,13 @@ class Trainer(object):
                      'crop_type':self.args.crop_type, 'crop_shape':self.args.crop_shape,
                      'resize_shape':self.args.resize_shape, 'resize_scale':self.args.resize_scale}
         tset = dset(train_or_val = 'train', **data_args)
+
         vset = dset(train_or_val = 'val', **data_args)
         self.image_size = tset.image_size
 
         load_args = {'batch_size': self.args.batch_size, 'num_workers':self.args.num_workers,
                      'drop_last':True, 'pin_memory':True}
+        
         self.num_batches = int(len(tset.samples)/self.args.batch_size)
         print(f'Found {len(tset.samples)} samples -> {self.num_batches} mini-batches')
         self.tloader = data.DataLoader(tset, shuffle = True, **load_args)
@@ -56,7 +58,7 @@ class Trainer(object):
                          warp_type = self.args.warp_type,
                          output_level = self.args.output_level,
                          name = 'BlockNet')
-        flows_final, self.flows,_ = model(images_0, images_1)
+        self.finalflow, self.flows_final, self.flows_up,_,self.flows_base,self.flowsforW = model(images_0, images_1)
         target_weights = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
                                            scope = 'BlockNet/fp_extractor')[::6]
         target_weights += tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
@@ -70,17 +72,17 @@ class Trainer(object):
                 criterion =\
                   partial(multirobust_loss, epsilon = self.args.epsilon, q = self.args.q)
             
-            _loss = criterion(self.flows_gt, self.flows, self.args.weights)
+            _loss = criterion(self.flows_gt, self.flows_base, self.args.weights)
             weights_l2 = tf.reduce_sum([tf.nn.l2_loss(var) for var in model.vars])
             loss = _loss + self.args.gamma*weights_l2
 
-            epe = EPE(self.flows_gt, flows_final)
+            epe = EPE(self.flows_gt, self.finalflow)
 
         # Gradient descent optimization
         with tf.name_scope('Optimize'):
             self.global_step = tf.compat.v1.train.get_or_create_global_step()
             if self.args.lr_scheduling:
-                boundaries = [200000, 250000, 300000, 350000, 4000000]
+                boundaries = [200000, 250000, 300000, 350000]
                 values = [self.args.lr/(2**i) for i in range(len(boundaries)+1)]
                 lr = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
             else:
@@ -151,15 +153,36 @@ class Trainer(object):
                     os.mkdir('./figure')
                 # Estimated flow values are downscaled, rescale them compatible to the ground truth
                 flow_set = []
-                flows_val = self.sess.run(self.flows, feed_dict = {self.images: images_val,
+                flows_up_val = self.sess.run(self.flows_up, feed_dict = {self.images: images_val,
                                                                    self.flows_gt: flows_gt_val})
-                for l, flow in enumerate(flows_val):
+                flows_base_val = self.sess.run(self.flows_base, feed_dict = {self.images: images_val,
+                                                                   self.flows_gt: flows_gt_val})
+                flowsforW_val = self.sess.run(self.flowsforW, feed_dict = {self.images: images_val,
+                                                                   self.flows_gt: flows_gt_val})
+                flows_final_val = self.sess.run(self.flows_final, feed_dict = {self.images: images_val,
+                                                                   self.flows_gt: flows_gt_val})
+
+                labels = []
+                for x in range(len(flows_final_val)):
+                  res = self.args.num_levels-x
+                  labels.append('flow_base_L'+str(res))
+                  labels.append('flow_Up_L'+str(res))
+                  labels.append('flow_warp_L'+str(res))
+                  labels.append('final_flow_L'+str(res))
+                  
+                for l,(flow_base,flowx2,flow_forW,final_flows) in enumerate(zip(flows_base_val,flows_up_val,flowsforW_val,flows_final_val)):
                     upscale = 20/2**(self.args.num_levels-l)
-                    flow_set.append(flow[0]*upscale)
+                    flow_set.append(flow_base[0]*upscale) 
+                    flow_set.append(flowx2[0]*upscale)
+                    flow_set.append(flow_forW[0]*upscale)
+                    flow_set.append(final_flows[0]*upscale)
+
+   
                 flow_gt = flows_gt_val[0]
                 images_v = images_val[0]
-                vis_flow_pyramid(flow_set, flow_gt, images_v,
+                vis_flow_pyramid(flow_set,labels,flow_gt, images_v,
                                  f'./figure/flow_{str(e+1).zfill(4)}.pdf')
+
 
             if not os.path.exists('./model'):
                 os.mkdir('./model')

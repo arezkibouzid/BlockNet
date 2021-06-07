@@ -196,7 +196,6 @@ def vis_flow_pyramid(flow_pyramid, flow_gt = None, images = None, filename = './
     plt.savefig(filename, bbox_inches = 'tight', pad_inches = 0.1)
     plt.close()
 
-
 # if __name__ == '__main__':
 # 	parser = argparse.ArgumentParser()
 # 	parser.add_argument(

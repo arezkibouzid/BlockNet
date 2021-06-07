@@ -152,7 +152,7 @@ def vis_flow(flow):
     img = computeColor(u, v)
     return img[:,:,[2,1,0]]
    
-def vis_flow_pyramid(flow_pyramid, flow_gt = None, images = None, filename = './flow.png'):
+def vis_flow_pyramid(flow_pyramid,labels, flow_gt = None, images = None, filename = './flow.png'):
     num_contents = len(flow_pyramid) + int(flow_gt is not None) + int(images is not None)*2
     fig = plt.figure(figsize = (12, 15*num_contents))
 
@@ -173,10 +173,13 @@ def vis_flow_pyramid(flow_pyramid, flow_gt = None, images = None, filename = './
         plt.tick_params(labelleft = False, left = False)
         plt.xticks([])
         box(False)
-            
+
+    i =0      
     for flow in flow_pyramid:
         plt.subplot(1, num_contents, fig_id)
         plt.imshow(vis_flow(flow))
+        plt.xlabel(labels[i])
+        i=i+1
         plt.tick_params(labelbottom = False, bottom = False)
         plt.tick_params(labelleft = False, left = False)
         plt.xticks([])

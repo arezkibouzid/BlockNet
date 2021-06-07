@@ -112,12 +112,16 @@ class WarpingLayer(object):
         # expect shape
         # x:(#batch, height, width, #channel)
         # flow:(#batch, height, width, 2)
+
         with tf.name_scope(self.name) as ns:
             assert self.warp in ['nearest', 'bilinear']
             if self.warp == 'nearest':
+
                 x_warped = nearest_warp(x, flow)
             else:
                 x_warped = bilinear_warp(x, flow)
+                
+            print("flow for warp",flow.shape)
             return x_warped
 
 
@@ -159,20 +163,25 @@ def extract_patch(f_c_r,s_range,block_size=-1):
     for image in blist:
         for fetMap in image:
             fetMap= tf.reshape(fetMap,[1,fetMap.shape[0],fetMap.shape[1],1])
-            pp=tf.image.extract_patches(images=fetMap,sizes=[1, s_range, s_range, 1],strides=[1, block_size, block_size, 1],rates=[1, 1, 1, 1],padding='SAME')
+            pp = tf.image.extract_patches(images=fetMap,sizes=[1, s_range, s_range, 1],strides=[1, block_size, block_size, 1],rates=[1, 1, 1, 1],padding='SAME')
             pp = tf.squeeze(pp)
             pp = tf.reshape(pp,shape=(pp.shape[0],pp.shape[1],s_range,s_range))
-            pp= tf.reshape(pp,(pp.shape[2],pp.shape[3],pp.shape[1]*pp.shape[0]))
-            image_block.append(pp)#stack 
+            pp = tf.transpose(pp,[2,3,0,1])
+            pp = tf.reshape(pp,(pp.shape[0],pp.shape[1],pp.shape[2]*pp.shape[3]))
+            image_block.append(pp) #stack 
         tensor_image = tf.convert_to_tensor(image_block, dtype=tf.float32)
-        shape= tensor_image.shape
-        tensor_image = tf.reshape(tensor_image,shape=(s_range,s_range,shape[0]*shape[3]))
+        print("image ",tensor_image.shape)
+        
+        #tensor_image = tf.transpose(tensor_image,[1,2,0,3])
+        #print("image1 ",tensor_image.shape)
+        #shape= tensor_image.shape
+        #tensor_image = tf.reshape(tensor_image,shape=(s_range,s_range,shape[2]*shape[3]))
+        #print("image2 ",tensor_image.shape)
         result.append(tensor_image)
         image_block.clear()
     result = tf.convert_to_tensor(result, dtype=tf.float32)
+    print("result function",result)
     return result
-
-   
 
 
 class CostVolumeLayer(object):
@@ -182,7 +191,7 @@ class CostVolumeLayer(object):
         self.block_size = block_size 
         self.name = name
  
-    def __call__(self, features_0, features_0from1):
+    def __call__(self, l,features_0, features_0from1):
         with tf.name_scope(self.name) as ns:
             f_c=features_0
             shape = f_c.shape
@@ -194,14 +203,65 @@ class CostVolumeLayer(object):
             f_r=tf.keras.layers.AveragePooling2D(pool_size=(self.block_size, self.block_size), strides=(1,1))(f_r)
             print(" f_c after pooling",f_c.shape)
             print(" f_r after pooling",f_r.shape)
+
             f_c_r=tf.repeat(tf.repeat(f_c, self.s_range, axis=1), self.s_range, axis=2)
             print(" f_c_r  repeat",f_c_r.shape)
             
             p_c = extract_patch(f_c_r,self.s_range)
+            print("p_c extract patch ",p_c.shape)
             p_r = extract_patch(f_r,self.s_range,self.block_size)
+            print("p_c extract patch ",p_r.shape)
             cv = p_c*p_r
+            cv = tf.reduce_mean(cv,axis=1)
+            print("cv = pc*pr",cv)
+
+
+
             
-            cv= tf.reshape(cv,(shape[0],shape[1],shape[2],-1))
+            depth = 0
+            #print(shape)
+            #t= np.array(2**(l*0.5 ) * np.array(shape.as_list())[1:3])
+            #t = np.floor(t[:])
+
+            shaped =(1,(shape[1]//self.block_size),(shape[2]//self.block_size),1)
+            print("shaped ",shaped)
+            temp = tf.zeros(shape=shaped,dtype=tf.float32)
+            cv_1 = []
+            cv_f = []
+            for batch in range(cv.shape[0]): 
+                for w in range(cv.shape[1]):
+                    for h in range(cv.shape[2]):
+
+                            #print("shape basiq",shape)
+                            #print("temp shape",temp.shape)
+                            #print("++++after +",shape[1]//self.block_size,shape[2]//self.block_size)
+                            #print("++++++++++++++++",l)
+                        """if l == 1:
+                            cv[batch,w,h,:] = tf.image.resize_with_crop_or_pad(cv[batch,w,h,:], int(t[0]), int(t[1]))
+
+                            temp = tf.image.resize(cv[batch,w,h,:],shaped,
+                                   method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                            cv_1.append(temp)
+                            depth +=1
+                        """
+                        #print("++++",cv[batch,w,h,:].shape)
+                        #exit()
+                        temp = tf.reshape(cv[batch,w,h,:],shaped)
+                        #temp = tf.compat.v1.image.resize_bilinear(temp,size=(shape[1],shape[2]))
+                        temp = tf.repeat(tf.repeat(temp, self.block_size, axis=1), self.block_size, axis=2)
+                        temp = tf.squeeze(temp)
+                        cv_1.append(temp)
+                        #depth +=1
+                cv_f.append(cv_1)
+                cv_1 = []
+            #print("+++++++++++++++",cv_1[0].shape)
+            cv_f = tf.convert_to_tensor(cv_f, dtype=tf.float32)
+            print("cv_fffff",cv_f.shape)
+            #sh = cv_f.shape 
+            #cv_f = tf.compat.v1.image.resize_bilinear(cv_f,size=(sh[0],sh[1],shape[1],shape[2]))     
+            cv= tf.transpose(cv_f,[0,2,3,1])
+            print("cv_f",cv.shape)
+            #cv = tf.reshape(cv,shape=(shape[0],shape[1]//self.block_size,shape[2]//self.block_size,-1))
             print("shape pc : ",p_c.shape)
             print("shape pr : ",p_r.shape)
             #cv = tf.keras.layers.UpSampling2D(size=(self.block_size, self.block_size))(cv)
@@ -231,6 +291,9 @@ class CostVolumeLayer(object):
 # Optical flow estimator module simple/original -----------------------------------------
 
 # OpticalDlowEstimator_custom -------------------------------------
+
+
+
 class OpticalFlowEstimator_custom(object):
     """ Optical flow estimator module """
     def __init__(self, use_dc = False, name = 'of_estimator'):
@@ -242,7 +305,7 @@ class OpticalFlowEstimator_custom(object):
         self.filters = [32, 24, 16, 8]
         self.use_dc = use_dc
         self.name = name
- 
+
     def __call__(self, cv, features_0 , flows_up_prev = None, features_up_prev = None,
                  is_output = False):
         """
@@ -272,6 +335,7 @@ class OpticalFlowEstimator_custom(object):
  
             for f in self.filters:
                 conv = tf.keras.layers.Conv2D(f, (3, 3), (2, 2), 'same')(features)
+                #conv = tf.keras.layers.Conv2D(f, (3, 3),dilation_rate=(2, 2),padding='same')(features)
                 conv = tf.nn.leaky_relu(conv, 0.1)
                 if self.use_dc:
                     features = tf.concat([conv, features], axis = 3)
@@ -282,14 +346,45 @@ class OpticalFlowEstimator_custom(object):
             if flows_up_prev is not None:
                 # Residual connection
                 flows += flows_up_prev
+            print ("Size flow",flows.shape)
  
             if is_output:
                 return flows, features
             else:
-                _, h, w, _ = tf.unstack(tf.shape(flows))
-                flows_up = tf.compat.v1.image.resize_bilinear(flows, (2*h, 2*w))
+                #_, h, w, _ = tf.unstack(tf.shape(flows))
+                #flows_up = tf.compat.v1.image.resize_bilinear(flows, (2*h, 2*w))
+                flows_up = flows*20
+                print ("Size flow after resize",flows_up.shape)
                 #features_up = tf.compat.v1.image.resize_bilinear(features, (2*h, 2*w))
                 #flows
-                return flows_up
+                return flows ,flows_up
 
-            
+
+def _conv_block(filters, kernel_size = (3, 3), strides = (1, 1), batch_norm = False):
+  def f(x):
+    x = tf.keras.layers.Conv2D(filters, kernel_size,
+                         strides, 'same')(x)
+    if batch_norm:
+      x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.nn.leaky_relu(x, 0.2)
+    return x
+  return f
+
+class OpticalFlowEstimator(object):
+    def __init__(self, name = 'of_estimator'):
+        self.batch_norm = False
+        self.name = name
+
+    def __call__(self, cost, x):
+        with tf.compat.v1.variable_scope(self.name) as vs:
+            '''flow = tf.cast(flow, dtype = tf.float32)'''
+            x = tf.concat([cost, x ], axis = 3)
+            x = _conv_block(128, (3, 3), (1, 1), self.batch_norm)(x)
+            x = _conv_block(128, (3, 3), (1, 1), self.batch_norm)(x)
+            x = _conv_block(96, (3, 3), (1, 1), self.batch_norm)(x)
+            x = _conv_block(64, (3, 3), (1, 1), self.batch_norm)(x)
+            feature = _conv_block(32, (3, 3), (1, 1), self.batch_norm)(x)
+            flow = tf.keras.layers.Conv2D(2, (3, 3), (1, 1), padding = 'same')(feature)
+
+            return feature, flow # x:processed feature, w:processed flow         
+
