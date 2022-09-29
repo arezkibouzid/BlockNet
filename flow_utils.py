@@ -5,10 +5,98 @@ from pylab import box
 import matplotlib.pyplot as plt
 import cv2
 import sys
-import argparse
-
+import re
 
 __all__ = ['load_flow', 'save_flow', 'vis_flow']
+
+
+
+
+
+def read_flo_file(filename):
+    """
+    Read from Middlebury .flo file
+    :param flow_file: name of the flow file
+    :return: optical flow data in matrix
+    """
+    f = open(filename, 'rb')
+    magic = np.fromfile(f, np.float32, count=1)
+    data2d = None
+
+    if 202021.25 != magic:
+        print('Magic number incorrect. Invalid .flo file')
+    else:
+        w = np.fromfile(f, np.int32, count=1)[0]
+        h = np.fromfile(f, np.int32, count=1)[0]
+        # print("Reading %d x %d flow file in .flo format" % (h, w))
+        data2d = np.fromfile(f, np.float32, count=2 * w * h)
+        # reshape data into 3D array (columns, rows, channels)
+        data2d = np.resize(data2d, (h, w, 2))
+    f.close()
+    return data2d
+
+
+def read_pfm_file(flow_file):
+    """
+    Read from .pfm file
+    :param flow_file: name of the flow file
+    :return: optical flow data in matrix
+    """
+    def readPFM(file):
+        file = open(file, 'rb')
+
+        color = None
+        width = None
+        height = None
+        scale = None
+        endian = None
+
+        header = file.readline().rstrip().decode('utf-8')
+
+        assert header == 'PF'
+        
+        dim_match = file.readline().decode('utf-8')
+        dim_match = re.match(r'^(\d+)\s(\d+)\s$', dim_match)
+
+        if dim_match:
+            width, height = map(int, dim_match.groups())
+        else:
+            raise Exception('Malformed PFM header.')
+
+        scale = float(file.readline().rstrip().decode('utf-8'))
+
+        if scale < 0:  # little-endian
+            endian = '<'
+            scale = -scale
+        else:
+            endian = '>'  # big-endian
+
+        data = np.fromfile(file, endian + 'f')
+        shape = (height, width, 3)
+
+        data = np.reshape(data, shape)[:, :, :2]
+        data = np.flipud(data)
+        
+        return data, scale
+
+    (data, scale) = readPFM(flow_file)
+
+    return data  
+
+def read_flow(filename):
+    """
+    read optical flow data from flow file
+    :param filename: name of the flow file
+    :return: optical flow data in numpy array
+    """
+    if filename.endswith('.flo'):
+        flow = read_flo_file(filename)
+    elif filename.endswith('.pfm'):
+        flow = read_pfm_file(filename)
+    else:
+        raise Exception('Invalid flow file format!')
+
+    return flow
 
 def load_flow(path):
     with open(path, 'rb') as f:
@@ -152,7 +240,7 @@ def vis_flow(flow):
     img = computeColor(u, v)
     return img[:,:,[2,1,0]]
    
-def vis_flow_pyramid(flow_pyramid, flow_gt = None, images = None, filename = './flow.png'):
+def vis_flow_pyramid(flow_pyramid,labels, flow_gt = None, images = None, filename = './flow.png'):
     num_contents = len(flow_pyramid) + int(flow_gt is not None) + int(images is not None)*2
     fig = plt.figure(figsize = (12, 15*num_contents))
 
@@ -173,10 +261,13 @@ def vis_flow_pyramid(flow_pyramid, flow_gt = None, images = None, filename = './
         plt.tick_params(labelleft = False, left = False)
         plt.xticks([])
         box(False)
-            
+
+    i =0      
     for flow in flow_pyramid:
         plt.subplot(1, num_contents, fig_id)
         plt.imshow(vis_flow(flow))
+        plt.xlabel(labels[i])
+        i=i+1
         plt.tick_params(labelbottom = False, bottom = False)
         plt.tick_params(labelleft = False, left = False)
         plt.xticks([])
