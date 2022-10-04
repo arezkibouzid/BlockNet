@@ -56,7 +56,8 @@ def train(args):
     data_loader = DataLoader(args.dd, args.tlist, args.vlist)
     train_dataset,validation_dataset = data_loader.create_tf_dataset(flags=args)
     print("Train samples : ",len(train_dataset))
-    print("Validation samples : ",len(validation_dataset))
+    if validation_dataset:
+      print("Validation samples : ",len(validation_dataset))
 
     model = BLOCKNet(gamma= args.gamma , weights=args.weights,num_levels = args.num_levels, 
                               search_range = args.search_range, warp_type = args.warp_type,
@@ -78,7 +79,7 @@ def train(args):
         train_dataset.prefetch(8),
         epochs=args.epochs,
         steps_per_epoch=args.steps_per_epoch,
-        validation_data=validation_dataset.cache(),
+        validation_data= validation_dataset.cache() if validation_dataset!=None else None,
         validation_freq=1,
         callbacks=[
             tf.keras.callbacks.TerminateOnNaN(),
@@ -140,11 +141,11 @@ def parse_args(argv):
       "--Learning_rate","-lr", type=float, default=0.01, dest="Learning_rate",
       help="Lambda for rate-distortion tradeoff.")
     train_cmd.add_argument(
-      "--train_list","-tl", type=str, default="FlyingChairs_release/FlyingChairs_train_list.txt", dest="tlist",
+      "--train_list","-tl", type=str, default="Datasets_list/MPI_Sintel_Clean_train_list.txt", dest="tlist",
       help="file name of train list")
 
     train_cmd.add_argument(
-      "--val_list","-vl", type=str, default="FlyingChairs_release/FlyingChairs_val_list.txt", dest="vlist",
+      "--val_list","-vl", type=str, default=None, dest="vlist",
       help="file name of val list")
       
     train_cmd.add_argument(
